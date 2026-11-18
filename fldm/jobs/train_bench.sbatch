@@ -2,7 +2,7 @@
 #SBATCH --job-name=fldm_bench
 #SBATCH --partition=3090
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --time=00:45:00
 #SBATCH --output=jobs/logs/%x_%j.out
 
@@ -42,7 +42,7 @@ XLA_PYTHON_CLIENT_PREALLOCATE=false python -m mesh_diffusion.sin_mesh_ddm.main \
   --config.obj_labels=mesh_diffusion/data/meshes/$ID/${ID}_sel.ply \
   --config.num_train_samples=100 --config.num_test_samples=16 \
   --config.sample_during_training=False \
-  --config.num_steps="$STEPS" --config.log_loss_every_steps=20 \
+  --config.num_steps="$STEPS" --config.warmup_steps=50 --config.log_loss_every_steps=20 \
   --config.checkpoint_every_steps=1000 2>&1 | tee "$OUT/run.log"
 
 awk -F, 'NR>1{gsub(/[^0-9]/,"",$2); if($2+0>m)m=$2+0} END{print "peak_gpu_MiB:", m}' "$OUT/gpu.csv" | tee -a "$OUT/meta.txt"
