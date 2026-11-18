@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """IO Utilities."""
+import io
 import os
 
 import numpy as np
@@ -25,7 +26,7 @@ from tensorflow.io import gfile
 def load_masked_ply(file_name):
   """Load masked ply."""
   with gfile.GFile(file_name, 'rb') as f:
-    mesh = plyfile.PlyData.read(f)
+    mesh = plyfile.PlyData.read(io.BytesIO(f.read()))
 
   vertices_x = np.asarray(mesh['vertex']['x'], dtype=np.double)
   vertices_y = np.asarray(mesh['vertex']['y'], dtype=np.double)

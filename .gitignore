@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+fldm/mesh_diffusion/data/
+fldm/mesh_diffusion/data/
+fldm/mesh_diffusion/runs/
+fldm/mesh_diffusion/samples/
+fldm/mesh_diffusion/workdir/
+fldm/jobs/logs/
