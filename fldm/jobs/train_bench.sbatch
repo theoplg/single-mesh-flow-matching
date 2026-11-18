@@ -33,7 +33,7 @@ nvidia-smi --query-gpu=timestamp,memory.used,utilization.gpu --format=csv -l 5 >
 SMI_PID=$!
 trap 'kill $SMI_PID 2>/dev/null || true' EXIT
 
-XLA_PYTHON_CLIENT_PREALLOCATE=false python -m mesh_diffusion.sin_mesh_ddm.main \
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.92 python -m mesh_diffusion.sin_mesh_ddm.main \
   --config=mesh_diffusion/sin_mesh_ddm/configs/default_train_labeled.py \
   --workdir="$OUT/" --logtostderr \
   --config.trainer_checkpoint_dir=mesh_diffusion/data/flvae/flvae_checkpoint/ \
