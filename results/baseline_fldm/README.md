@@ -1,34 +1,30 @@
-# Référence FLDM avec les poids publiés (lion de mer)
-
-Génération avec les poids du FL-VAE et du FLDM publiés par les auteurs
-(google-research/mesh_diffusion), sur le maillage fe973fc8e8c049c6b9ab884137fc9463,
-avec 1000 pas de diffusion (planning cosinus) sur une RTX 3090.
-
+# FLDM reference with the published weights (sea lion)
+Generation with the FL-VAE and FLDM weights published by the authors
+(google-research/mesh_diffusion), on mesh fe973fc8e8c049c6b9ab884137fc9463,
+with 1000 diffusion steps (cosine schedule) on an RTX 3090.
 ## Reproduction
-
-Commande lancée depuis `fldm/`, avec `num_train_samples=100` (sous-ensemble de 100
-maillages d'entraînement) et `num_test_samples=16`. Deux corrections de compatibilité
-ont été nécessaires par rapport au code des auteurs, à savoir `a_max` dans
-`latents/ring_vae.py` (jax 0.4.25) et la lecture du `.ply` via `io.BytesIO` dans
+Command run from `fldm/`, with `num_train_samples=100` (a subset of 100
+training meshes) and `num_test_samples=16`. Two compatibility fixes were
+needed compared to the authors' code, namely `a_max` in
+`latents/ring_vae.py` (jax 0.4.25) and reading the `.ply` through `io.BytesIO` in
 `latents/io_utils.py` (plyfile 1.0.3).
+## Measurements (first order of magnitude, to be redone properly)
 
-## Mesures (premier ordre de grandeur, à refaire proprement)
+* Latent precomputation for 100 meshes, about 3.5 minutes.
+* One sample, about 5 min 50, or about 0.35 s per network evaluation.
+* The default configuration generates 64 samples, which comes to about 6 h 20 on one GPU.
 
-- Précalcul des latents pour 100 maillages, environ 3,5 minutes.
-- Un échantillon, environ 5 min 50, soit environ 0,35 s par évaluation du réseau.
-- La configuration par défaut génère 64 échantillons, soit environ 6 h 20 sur une GPU.
+## Files
 
-## Fichiers
+* `sample_0.png`, `sample_1.png`, two independent draws.
+* `Init_recon_step1.png`, autoencoder reconstruction of a training mesh,
+ without diffusion. It gives the quality ceiling of the model.
 
-- `sample_0.png`, `sample_1.png`, deux tirages indépendants.
-- `Init_recon_step1.png`, reconstruction par l'auto-encodeur d'un maillage
-  d'entraînement, sans diffusion. Elle donne le plafond de qualité du modèle.
-- `Labels_step1.png`, carte des quatre classes d'étiquettes qui conditionne la génération.
-- `sample_run1.log`, journal de la génération.
+* `Labels_step1.png`, map of the four label classes that condition the generation.
+* `sample_run1.log`, generation log.
 
 ## Observations
-
-Les échantillons respectent la répartition des étiquettes (or, pierre, motifs colorés).
-Les artefacts en secteurs et en cellules sont déjà présents dans la reconstruction de
-l'auto-encodeur, ils viennent donc du décodeur. Les échantillons sont moins détaillés
-que la reconstruction, l'écart entre les deux mesure ce que perd l'étage de diffusion.
+The samples respect the label distribution (gold, stone, colored patterns).
+The sector and cell artifacts are already present in the autoencoder
+reconstruction, so they come from the decoder. The samples are less detailed than
+the reconstruction, and the gap between the two measures what the diffusion stage loses.
