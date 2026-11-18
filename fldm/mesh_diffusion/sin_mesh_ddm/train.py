@@ -45,6 +45,7 @@ from mesh_diffusion.latents import ring_vae
 from mesh_diffusion.sin_im_ddm import diffusion as df
 from mesh_diffusion.sin_im_ddm import net
 from mesh_diffusion.sin_mesh_ddm import input_pipeline
+from mesh_diffusion.ddim import samplers
 
 
 @flax.struct.dataclass
@@ -753,6 +754,11 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str):
       axis_name='batch',
   )
 
+  # Pmapped noise predictor shared by the samplers of `samplers.py`.
+  p_predict = jax.pmap(
+      functools.partial(predict, model=model), axis_name='batch'
+  )
+
   logging.info('Running pmap... Done.')
 
   writer = metric_writers.create_default_writer(
@@ -1200,7 +1206,22 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str):
             )
 
           recon_test_data = input_pipeline.get_decoder_data(gtest_batch)
-          if not config.predict_z0:
+          if config.sampler == 'ddim':
+            gen_latents, key = samplers.sample_latents_ddim(
+                predict_fn=p_predict,
+                geom_data=geom_test_data,
+                params=state.params,
+                key=key,
+                shape=latent_shape,
+                timestep=timestep,
+                sigma=sigma,
+                schedule=config.ddm_schedule,
+                num_sampling_steps=config.num_sampling_steps,
+                eta=config.ddim_eta,
+                spacing=config.ddim_spacing,
+                inpaint_data=inpaint_data,
+            )
+          elif not config.predict_z0:
             gen_latents, key = sample_latents(
                 model=model,
                 geom_data=geom_test_data,

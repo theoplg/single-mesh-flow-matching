@@ -31,6 +31,12 @@ def get_config():
   config.sample_save_dir = ''
   config.num_samples = 64
 
+  # Sampler used when `config.train` is False.
+  config.sampler = 'ddpm'  # 'ddpm' or 'ddim'
+  config.num_sampling_steps = 50  # Network evaluations, 'ddim' only.
+  config.ddim_eta = 0.0  # 0 is deterministic, 1 is as stochastic as DDPM.
+  config.ddim_spacing = 'trailing'  # 'leading' or 'trailing'.
+
   config.num_sample_nodes = 80000
   config.num_verts = 30000  # Number of vertices in triangulation
 
