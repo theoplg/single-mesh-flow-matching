@@ -1,1 +1,1 @@
-# single-mesh-flow-matching
+# Single Mesh Flow Matching

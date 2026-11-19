@@ -58,15 +58,21 @@ def make_timestep_sequence(
   Raises:
     ValueError: If N is not in [1, T] or if the spacing is unknown.
   """
-  # TODO(1): Validate the arguments and implement the two spacings.
-  if num_sampling_steps > timestep:
+
+  if num_sampling_steps > timestep or num_sampling_steps < 1:
     raise ValueError("N should be in [1,T]")
-  if spacing != 'leading' or spacing != 'trailing'=
+
+  if spacing not in ('leading', 'trailing'):
     raise ValueError('spacing sould be either leading or trailing')
 
-  
-  
-  raise NotImplementedError('TODO(1): make_timestep_sequence')
+  if spacing == 'leading':
+    k = timestep // num_sampling_steps
+    i = np.arange(num_sampling_steps - 1, -1, -1)
+    return 1 + k * i
+
+  else:
+    i = np.arange(num_sampling_steps, 0, -1)
+    return np.round(i * timestep / num_sampling_steps).astype(int)
 
 
 def noise_levels_for_sequence(
@@ -90,10 +96,10 @@ def noise_levels_for_sequence(
     alpha_bar_t[i] is the noise level of ts[i]. alpha_bar_prev[i] is the noise
     level of the timestep reached by step i, equal to 1.0 for the last step.
   """
-  # TODO(2): Index alpha_bar with the timesteps (mind the t - 1 offset) and
-  # build the shifted array of successors.
-  raise NotImplementedError('TODO(2): noise_levels_for_sequence')
 
+  alpha_bar_t = alpha_bar[ts - 1]
+  alpha_bar_prev = jnp.concatenate((alpha_bar_t[1:], np.asarray([1.0])), axis=0)
+  return (alpha_bar_t, alpha_bar_prev)
 
 def ddim_step(
     alpha_bar_t: Array,
@@ -130,15 +136,21 @@ def ddim_step(
   Returns:
     The latent at noise level `alpha_bar_prev`, with the same shape as `zt`.
   """
-  # TODO(3): Implement the DDIM update.
-  #   1. Estimate the clean latent z0_hat from (zt, epst, alpha_bar_t).
-  #   2. Compute the standard deviation sigma_t of the injected noise from eta.
-  #   3. Combine z0_hat, epst and noise at noise level alpha_bar_prev. Take care
-  #      that the coefficient of epst involves a square root, so it must not
-  #      become the root of a (numerically) negative number.
-  # You can compare your result with `df.alpha_predict_prev_from_z0` once it
-  # works, the unit tests do this for you.
-  raise NotImplementedError('TODO(3): ddim_step')
+
+  # 1. Clean latent estimated from z_t = sqrt(ab_t) z0 + sqrt(1 - ab_t) eps.
+  z0_hat = (zt - jnp.sqrt(1.0 - alpha_bar_t) * epst) / jnp.sqrt(alpha_bar_t)
+
+  # 2. Standard deviation of the injected noise (Song et al., Eq. 16).
+  sigma_t = (
+      eta
+      * jnp.sqrt((1.0 - alpha_bar_prev) / (1.0 - alpha_bar_t))
+      * jnp.sqrt(1.0 - alpha_bar_t / alpha_bar_prev)
+  )
+
+  # 3. Recombine at noise level alpha_bar_prev. The clamp protects the square
+  # root against tiny negative values caused by rounding.
+  dir_coef = jnp.sqrt(jnp.maximum(1.0 - alpha_bar_prev - sigma_t**2, 0.0))
+  return jnp.sqrt(alpha_bar_prev) * z0_hat + dir_coef * epst + sigma_t * noise
 
 
 def sample_latents_ddim(
@@ -194,20 +206,28 @@ def sample_latents_ddim(
 
   _, _, alpha_bar, _, _ = df.get_diffusion_parameters(timestep, schedule)
 
-  # TODO(4): Build the visited timesteps and their noise levels with the two
-  # functions above.
+  ts = make_timestep_sequence(timestep, num_sampling_steps, spacing)
+  alpha_bar_t, alpha_bar_prev = noise_levels_for_sequence(alpha_bar, ts)
 
   key, init_key = jax.random.split(key)
   zt = sigma * jax.random.normal(init_key, shape)
 
-  # TODO(5): Loop over the visited timesteps. At each step:
-  #   - build the time input of the network, one float per device (see
-  #     `train.sample_latents` for the shape it uses),
-  #   - convert `zt` to the complex representation, call `predict_fn`, and
-  #     convert the predicted noise back to the real representation,
-  #   - draw fresh noise (scaled by `sigma`) only when `eta > 0`, so that the
-  #     deterministic sampler does not consume random numbers,
-  #   - apply `ddim_step`.
-  raise NotImplementedError('TODO(5): sample_latents_ddim loop')
+  for i, t in enumerate(ts):
+    # Time input of the network: one float per device.
+    time_vec = float(t) * jnp.ones(zt.shape[0], dtype=jnp.float32)
+
+    # The network works on complex latents, the sampler on (real, imag) pairs.
+    zt_c = jax.lax.complex(zt[..., 0], zt[..., 1])
+    epst = predict_fn(params=params, geom_data=geom_data, zt=zt_c, t=time_vec)
+    epst = jnp.stack((jnp.real(epst), jnp.imag(epst)), axis=-1)
+
+    # The deterministic sampler (eta = 0) does not consume random numbers.
+    if eta > 0.0:
+      key, noise_key = jax.random.split(key)
+      noise = sigma * jax.random.normal(noise_key, zt.shape)
+    else:
+      noise = jnp.zeros_like(zt)
+
+    zt = ddim_step(alpha_bar_t[i], alpha_bar_prev[i], zt, epst, noise, eta)
 
   return jax.lax.complex(zt[..., 0], zt[..., 1]), key
