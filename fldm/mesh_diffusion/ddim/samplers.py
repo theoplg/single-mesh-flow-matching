@@ -59,6 +59,13 @@ def make_timestep_sequence(
     ValueError: If N is not in [1, T] or if the spacing is unknown.
   """
   # TODO(1): Validate the arguments and implement the two spacings.
+  if num_sampling_steps > timestep:
+    raise ValueError("N should be in [1,T]")
+  if spacing != 'leading' or spacing != 'trailing'=
+    raise ValueError('spacing sould be either leading or trailing')
+
+  
+  
   raise NotImplementedError('TODO(1): make_timestep_sequence')
 
 
