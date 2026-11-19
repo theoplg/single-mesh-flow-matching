@@ -227,4 +227,5 @@ fldm/mesh_diffusion/samples/
 fldm/mesh_diffusion/workdir/
 fldm/jobs/logs/
 
-.DS_Store
+.DS_Store__pycache__/
+.pytest_cache/
