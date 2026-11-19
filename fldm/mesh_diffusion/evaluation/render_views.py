@@ -116,8 +116,8 @@ def render_view(points, colors, size, azimuth, elevation, up, splat):
   a, b, v = points[:, horiz[0]], points[:, horiz[1]], points[:, up]
   x = np.cos(azimuth) * a - np.sin(azimuth) * b
   depth = np.sin(azimuth) * a + np.cos(azimuth) * b
-  y = np.cos(elevation) * v - np.sin(elevation) * depth
-  depth = np.sin(elevation) * v + np.cos(elevation) * depth
+  y = np.cos(elevation) * v + np.sin(elevation) * depth
+  depth = np.cos(elevation) * depth - np.sin(elevation) * v
 
   scale = 0.45 * size
   px = np.round(x * scale + size / 2).astype(np.int64)
