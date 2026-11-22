@@ -1,0 +1,12 @@
+trailing  N=  10 t0=1000 amplification=     3148.43
+trailing  N=  20 t0=1000 amplification=     1578.50
+trailing  N=  50 t0=1000 amplification=      631.34
+trailing  N= 100 t0=1000 amplification=      315.21
+trailing  N= 250 t0=1000 amplification=      125.49
+trailing  N=1000 t0=1000 amplification=       30.62
+leading   N=  10 t0= 901 amplification=        1.01
+leading   N=  20 t0= 951 amplification=        1.02
+leading   N=  50 t0= 981 amplification=        1.05
+leading   N= 100 t0= 991 amplification=        1.11
+leading   N= 250 t0= 997 amplification=        1.33
+leading   N=1000 t0=1000 amplification=       30.62
