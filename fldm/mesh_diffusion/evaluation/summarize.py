@@ -35,10 +35,12 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument('--runs_dir', required=True)
   parser.add_argument('--out', required=True)
+  parser.add_argument('--metrics_file', default='metrics.json',
+                      help='Metrics file to read in each run directory.')
   args = parser.parse_args()
 
   rows = []
-  for path in sorted(glob.glob(os.path.join(args.runs_dir, '*/metrics.json'))):
+  for path in sorted(glob.glob(os.path.join(args.runs_dir, '*', args.metrics_file))):
     run_dir = os.path.dirname(path)
     run = os.path.basename(run_dir)
     with open(path) as f:

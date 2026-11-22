@@ -1,6 +1,6 @@
 # Journal complet du projet single-mesh-flow-matching
 
-Dernière mise à jour le 22 novembre 2026. Ce document rassemble tout ce qui a été fait depuis le début, les problèmes rencontrés avec leurs corrections, les ordres de grandeur de stockage et de temps, et ce qui reste à faire. 
+Dernière mise à jour le 22 novembre 2026. Ce document rassemble tout ce qui a été fait depuis le début, les problèmes rencontrés avec leurs corrections, les ordres de grandeur de stockage et de temps, et ce qui reste à faire.
 
 ---
 
@@ -46,21 +46,20 @@ La sortie n'est pas une couleur par sommet. Le décodeur évalue la texture pixe
 
 Avec le schedule cosinus, `alpha_bar[999] ≈ 2,4·10⁻⁹`. Au premier pas, le latent est du bruit presque pur, et une petite erreur de prédiction est multipliée par un grand facteur. Les facteurs d'amplification mesurés pour le premier pas (eta = 0) sont les suivants.
 
-| Pas | `trailing` | `leading` |
-|---|---|---|
-| 10 | 3148 | 1,01 |
-| 20 | 1578 | 1,02 |
-| 50 | 631 | 1,05 |
-| 100 | 315 | 1,11 |
-| 250 | 125 | 1,33 |
-| 1000 | 30,6 | 30,6 |
+| Pas  | `trailing` | `leading` |
+| ---- | ---------- | --------- |
+| 10   | 3148       | 1,01      |
+| 20   | 1578       | 1,02      |
+| 50   | 631        | 1,05      |
+| 100  | 315        | 1,11      |
+| 250  | 125        | 1,33      |
+| 1000 | 30,6       | 30,6      |
 
 Les images confirment. À 10 pas, `trailing` donne du bruit pur et `leading` une texture propre. À 50 pas, `trailing` redevient lisible mais granuleux. Fichier du résultat prévu dans `results/ddim_first_step_amplification.txt`.
 
 Réserve sur `leading`. À petit nombre de pas, il démarre à t = 901 depuis du bruit pur, alors que la vraie distribution à ce niveau contient un peu de signal (ᾱ ≈ 0,024). Cela peut peser sur la qualité ou la diversité, et seules les métriques sur 64 samples le diront.
 
 ## 3. Infrastructure et environnement
-
 
 ### Environnement `fldm` (JAX, TensorFlow)
 
@@ -113,12 +112,12 @@ Le `_sel.ply` ne contient ni UV ni couleur, seulement la géométrie et les labe
 - Premier essai (`bench1`) en échec mémoire, second (`bench2`) réussi (voir la section 9).
 - Résultats mesurés sur une 3090.
 
-| Mesure | Valeur |
-|---|---|
-| Vitesse d'entraînement | 0,485 pas/s, soit environ 2,06 s par pas |
-| Mémoire d'un pas d'entraînement | 16,6 GiB |
-| Utilisation GPU moyenne | 93,9 % |
-| Démarrage d'un job | environ 5 min 40 |
+| Mesure                          | Valeur                                   |
+| ------------------------------- | ---------------------------------------- |
+| Vitesse d'entraînement          | 0,485 pas/s, soit environ 2,06 s par pas |
+| Mémoire d'un pas d'entraînement | 16,6 GiB                                 |
+| Utilisation GPU moyenne         | 93,9 %                                   |
+| Démarrage d'un job              | environ 5 min 40                         |
 
 - Sur un GPU, un pas correspond à un maillage. `optax.MultiSteps` cumule 16 pas par mise à jour du réseau, et le planning du taux d'apprentissage compte les mises à jour réelles.
 - Un job de 2 jours fait donc environ 84 000 pas, soit environ 5 200 mises à jour.
@@ -135,13 +134,13 @@ Le `_sel.ply` ne contient ni UV ni couleur, seulement la géométrie et les labe
 
 Conception décidée ensemble. Tu voulais coder une partie toi-même, donc je t'ai donné le squelette avec les signatures et des docstrings en anglais, les points délicats laissés en TODO.
 
-| Fichier | Rôle |
-|---|---|
-| `mesh_diffusion/ddim/samplers.py` | `make_timestep_sequence` (TODO 1), `noise_levels_for_sequence` (TODO 2), `ddim_step` (TODO 3), `sample_latents_ddim` (TODO 4 et 5) |
-| `mesh_diffusion/ddim/samplers_test.py` | 13 tests (séquences de pas, niveaux de bruit, `ddim_step` contre les fonctions de référence, eta = 0 sans bruit, eta = 1 égal à DDPM, entrées complexes, boucle avec un réseau oracle, reproductibilité, inpainting refusé) |
-| `mesh_diffusion/sin_mesh_ddm/train.py` | Branchement minimal (import, un `p_predict` en pmap, une branche `config.sampler == 'ddim'`) |
-| `mesh_diffusion/sin_mesh_ddm/configs/default.py` | Quatre options (`sampler`, `num_sampling_steps`, `ddim_eta`, `ddim_spacing`) |
-| `jobs/sample_ddim.sbatch` | Balayage du nombre de pas (variables `STEPS_LIST`, `ETA`, `SPACING`, `NSAMP`) |
+| Fichier                                          | Rôle                                                                                                                                                                                                                        |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mesh_diffusion/ddim/samplers.py`                | `make_timestep_sequence` (TODO 1), `noise_levels_for_sequence` (TODO 2), `ddim_step` (TODO 3), `sample_latents_ddim` (TODO 4 et 5)                                                                                          |
+| `mesh_diffusion/ddim/samplers_test.py`           | 13 tests (séquences de pas, niveaux de bruit, `ddim_step` contre les fonctions de référence, eta = 0 sans bruit, eta = 1 égal à DDPM, entrées complexes, boucle avec un réseau oracle, reproductibilité, inpainting refusé) |
+| `mesh_diffusion/sin_mesh_ddm/train.py`           | Branchement minimal (import, un `p_predict` en pmap, une branche `config.sampler == 'ddim'`)                                                                                                                                |
+| `mesh_diffusion/sin_mesh_ddm/configs/default.py` | Quatre options (`sampler`, `num_sampling_steps`, `ddim_eta`, `ddim_spacing`)                                                                                                                                                |
+| `jobs/sample_ddim.sbatch`                        | Balayage du nombre de pas (variables `STEPS_LIST`, `ETA`, `SPACING`, `NSAMP`)                                                                                                                                               |
 
 - Les tests ont été validés de mon côté contre une implémentation de référence privée, avec des mutations volontaires détectées, sous jax 0.4.38 et pas sous 0.4.25.
 - Sur ta remarque, le code DDIM a été sorti du dossier des auteurs vers `mesh_diffusion/ddim/`, pour que ton apport se voie. Le seul fichier de Google qui reste modifié est `train.py` (une quinzaine de lignes) et `default.py` (4 options).
@@ -149,14 +148,14 @@ Conception décidée ensemble. Tu voulais coder une partie toi-même, donc je t'
 
 Tests sur le GPU (2 samples) puis balayages complets sur 64 samples.
 
-| Pas | Temps `leading` (s) | Temps `trailing` (s) |
-|---|---|---|
-| 10 | 556 | 554 |
-| 20 | 744 | 754 |
-| 50 | 1384 | 1395 |
-| 100 | 2449 | 2482 |
-| 250 | 5669 | 5734 |
-| 1000 (DDPM) | 22315 | — |
+| Pas         | Temps `leading` (s) | Temps `trailing` (s) |
+| ----------- | ------------------- | -------------------- |
+| 10          | 556                 | 554                  |
+| 20          | 744                 | 754                  |
+| 50          | 1384                | 1395                 |
+| 100         | 2449                | 2482                 |
+| 250         | 5669                | 5734                 |
+| 1000 (DDPM) | 22315               | —                    |
 
 Une droite sur ces points donne environ 340 s de démarrage fixe et 21,3 s par pas pour 64 samples, soit environ 0,33 s par évaluation du réseau, cohérent avec la mesure du benchmark (0,34 s). Hors démarrage, le DDIM à 10 pas est environ 100 fois plus rapide que DDPM. Démarrage compris, il n'est que 40 fois plus rapide.
 
@@ -179,39 +178,64 @@ Protocole du papier (section 6.2). 64 textures par asset, rendues sous 24 vues. 
 
 Premier test de bout en bout sur 4 samples de la référence DDPM (sans valeur statistique).
 
-| Mesure | Valeur |
-|---|---|
-| SIFID(ref, ref), contrôle | 2,3·10⁻¹³ |
-| SIFID moyen | 0,851 (écart-type 0,043 entre samples, de 0,46 à 1,36 selon la vue) |
-| LPIPS moyen | 0,0804 (soit 0,80 une fois multiplié par 10) |
+| Mesure                    | Valeur                                                              |
+| ------------------------- | ------------------------------------------------------------------- |
+| SIFID(ref, ref), contrôle | 2,3·10⁻¹³                                                           |
+| SIFID moyen               | 0,851 (écart-type 0,043 entre samples, de 0,46 à 1,36 selon la vue) |
+| LPIPS moyen               | 0,0804 (soit 0,80 une fois multiplié par 10)                        |
 
 Le LPIPS est dans l'ordre de grandeur du papier. Le SIFID n'est pas comparable à celui du papier (rendu différent, un seul asset, normalisation inconnue). Seule la comparaison entre méthodes avec notre pipeline a du sens.
 
 ## 5. État actuel
 
 - Les 10 runs DDIM (5 nombres de pas × 2 espacements) et la référence DDPM sont complets, 64 PNG chacun.
-- La prochaine étape est l'évaluation de ces 11 runs avec `eval_runs.sbatch`, puis `summarize.py`.
-- Le commit des fichiers DDIM, rendu et métriques, et du script d'amplification, a été recommandé. Je ne sais pas s'il est fait.
+- Les 11 runs ont été évalués avec `eval_runs.sbatch` (rendu 24 vues puis SIFID bloc 0 et LPIPS), sans aucun échec. Le tableau est dans `results/eval_summary.csv` (généré par `summarize.py`, commit recommandé).
+- Un contrôle de robustesse du SIFID avec les blocs 1 (192 canaux) et 2 (768 canaux) d'Inception est préparé (`jobs/metrics_blocks.sbatch`, option `--metrics_file` de `summarize.py`). Je ne sais pas encore s'il a été lancé.
+
+### Résultats de l'évaluation (SIFID bloc 0, LPIPS alex)
+
+Écart-type du SIFID entre samples d'environ 0,06, soit une erreur standard d'environ 0,0075 sur 64 samples. Le SIFID est affiché brut (le papier utilise ×10⁵ et LPIPS ×10, voir la phase H).
+
+| Run                  | SIFID  | LPIPS  |
+| -------------------- | ------ | ------ |
+| DDPM 1000 pas (réf.) | 0,7644 | 0,0816 |
+| `leading` 250 pas    | 0,7860 | 0,0815 |
+| `leading` 100 pas    | 0,7952 | 0,0819 |
+| `leading` 50 pas     | 0,8071 | 0,0810 |
+| `leading` 20 pas     | 0,8518 | 0,0815 |
+| `leading` 10 pas     | 0,9276 | 0,0824 |
+| `trailing` 250 pas   | 0,7108 | 0,0836 |
+| `trailing` 100 pas   | 0,7058 | 0,0878 |
+| `trailing` 50 pas    | 2,0222 | 0,0992 |
+| `trailing` 20 pas    | 29,1635 | 0,0884 |
+| `trailing` 10 pas    | 67,5136 | 0,0719 |
+
+Lecture prudente.
+
+- `leading` se dégrade lentement quand le nombre de pas baisse (0,79 à 250 pas, 0,93 à 10 pas) et reste proche de DDPM, avec un LPIPS inchangé. Il tient donc bien à petit budget.
+- `trailing` s'effondre sous 100 pas, ce qui confirme l'amplification d'erreur au premier pas.
+- À 100 et 250 pas, `trailing` obtient un SIFID plus bas que DDPM (0,71 contre 0,76) alors que son LPIPS est un peu plus haut. L'écart avec le plateau de `leading` (environ 0,79) n'est pas expliqué à ce stade.
+- Le SIFID n'a pas d'échelle absolue ici. Le SIFID de la reconstruction du VAE (plafond) n'a pas encore été calculé.
 
 ## 6. Problèmes rencontrés et corrections
 
-| Problème | Cause | Correction |
-|---|---|---|
-| `ModuleNotFoundError: tensorflow` ou `absl` dans un shell neuf | Environnement non activé, `~/fldm_env.sh` inexistant | Création du script d'activation |
-| `jnp.clip() got an unexpected keyword argument 'max'` | jax 0.4.25 attend `a_max` | `ring_vae.py` ligne 174, `max=3.0` devient `a_max=3.0` (commité) |
-| `'GFile' object has no attribute 'readable'` | plyfile 1.0.3 | `io_utils.py`, ajout de `import io` et lecture par `io.BytesIO(f.read())` (commité) |
-| Bloc `srun` collé sur la passerelle (CpuDevice, déconnexion) | La commande a tourné sur `gpu-gw` et non sur un nœud | Se reconnecter, coller les blocs séparément, vérifier que le prompt affiche `nodeXX` |
-| `sbatch: Rejected [3090]: max 4 CPUs/GPU` | Règle de la partition | `--cpus-per-task=4` |
-| `cosine_decay_schedule requires positive decay_steps, got -700` | `warmup_steps=1000` avec un benchmark de 300 pas | `--config.warmup_steps=50` pour le benchmark (garder 1000 pour un vrai entraînement) |
-| `RESOURCE_EXHAUSTED` sur une allocation de 16,15 GiB (bench1) | Le flag `XLA_PYTHON_CLIENT_PREALLOCATE=false` que j'avais proposé provoque une fragmentation de la mémoire | `XLA_PYTHON_CLIENT_MEM_FRACTION=0.92`, relance en `bench2` réussie |
-| Extraction des images TensorBoard sans résultat | Les images sont dans les tenseurs, pas dans les événements d'image | Lecture des tags `tensors` (`string_val[2]`) |
-| Bloc `cat > fichier <<'EOF'` collé avec la commande suivante | Le `EOF` s'est collé au `cd` suivant (`EOFcd`), le shell n'a pas fermé le fichier | Supprimer la fin parasite (`sed -i '/^EOFcd/,$d'`), coller les blocs un par un ou utiliser l'éditeur |
-| Deux commandes `sbatch` collées sur une ligne | La deuxième est lue comme arguments de la première | Les lancer sur deux lignes, annuler avec `scancel <numéro>` ou `scancel --name=fldm_ddim` |
-| `sacct` indisponible | Base de comptabilité du cluster inactive | Durée reconstituée avec la date de début de `meta.txt` et la date du dernier fichier écrit |
-| `ImportError: libbz2.so.1.0` à l'import de `torchvision` | Le Python du module cherche `libbz2.so.1.0`, le nœud n'a que `libbz2.so.1` | Lien `~/lib/libbz2.so.1.0` vers `/usr/lib64/libbz2.so.1` et `LD_LIBRARY_PATH=$HOME/lib` dans `~/fldm_eval_env.sh` |
-| DDIM `trailing` à 10 pas donne du bruit | Amplification d'erreur au premier pas (ᾱ presque nul) | Pas un bug, comparaison avec `leading`, balayage dans les deux espacements |
-| Sandbox sans jaxlib 0.4.30 (Python 3.13) | Version de Python | Validation privée avec jax 0.4.38, numpy 2.0.2 |
-| Patch du branchement collé avec des espaces mal copiés | Indentation sensible | Script Python idempotent avec assertions d'unicité |
+| Problème                                                        | Cause                                                                                                      | Correction                                                                                                        |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ModuleNotFoundError: tensorflow` ou `absl` dans un shell neuf  | Environnement non activé, `~/fldm_env.sh` inexistant                                                       | Création du script d'activation                                                                                   |
+| `jnp.clip() got an unexpected keyword argument 'max'`           | jax 0.4.25 attend `a_max`                                                                                  | `ring_vae.py` ligne 174, `max=3.0` devient `a_max=3.0` (commité)                                                  |
+| `'GFile' object has no attribute 'readable'`                    | plyfile 1.0.3                                                                                              | `io_utils.py`, ajout de `import io` et lecture par `io.BytesIO(f.read())` (commité)                               |
+| Bloc `srun` collé sur la passerelle (CpuDevice, déconnexion)    | La commande a tourné sur `gpu-gw` et non sur un nœud                                                       | Se reconnecter, coller les blocs séparément, vérifier que le prompt affiche `nodeXX`                              |
+| `sbatch: Rejected [3090]: max 4 CPUs/GPU`                       | Règle de la partition                                                                                      | `--cpus-per-task=4`                                                                                               |
+| `cosine_decay_schedule requires positive decay_steps, got -700` | `warmup_steps=1000` avec un benchmark de 300 pas                                                           | `--config.warmup_steps=50` pour le benchmark (garder 1000 pour un vrai entraînement)                              |
+| `RESOURCE_EXHAUSTED` sur une allocation de 16,15 GiB (bench1)   | Le flag `XLA_PYTHON_CLIENT_PREALLOCATE=false` que j'avais proposé provoque une fragmentation de la mémoire | `XLA_PYTHON_CLIENT_MEM_FRACTION=0.92`, relance en `bench2` réussie                                                |
+| Extraction des images TensorBoard sans résultat                 | Les images sont dans les tenseurs, pas dans les événements d'image                                         | Lecture des tags `tensors` (`string_val[2]`)                                                                      |
+| Bloc `cat > fichier <<'EOF'` collé avec la commande suivante    | Le `EOF` s'est collé au `cd` suivant (`EOFcd`), le shell n'a pas fermé le fichier                          | Supprimer la fin parasite (`sed -i '/^EOFcd/,$d'`), coller les blocs un par un ou utiliser l'éditeur              |
+| Deux commandes `sbatch` collées sur une ligne                   | La deuxième est lue comme arguments de la première                                                         | Les lancer sur deux lignes, annuler avec `scancel <numéro>` ou `scancel --name=fldm_ddim`                         |
+| `sacct` indisponible                                            | Base de comptabilité du cluster inactive                                                                   | Durée reconstituée avec la date de début de `meta.txt` et la date du dernier fichier écrit                        |
+| `ImportError: libbz2.so.1.0` à l'import de `torchvision`        | Le Python du module cherche `libbz2.so.1.0`, le nœud n'a que `libbz2.so.1`                                 | Lien `~/lib/libbz2.so.1.0` vers `/usr/lib64/libbz2.so.1` et `LD_LIBRARY_PATH=$HOME/lib` dans `~/fldm_eval_env.sh` |
+| DDIM `trailing` à 10 pas donne du bruit                         | Amplification d'erreur au premier pas (ᾱ presque nul)                                                      | Pas un bug, comparaison avec `leading`, balayage dans les deux espacements                                        |
+| Sandbox sans jaxlib 0.4.30 (Python 3.13)                        | Version de Python                                                                                          | Validation privée avec jax 0.4.38, numpy 2.0.2                                                                    |
+| Patch du branchement collé avec des espaces mal copiés          | Indentation sensible                                                                                       | Script Python idempotent avec assertions d'unicité                                                                |
 
 ### Erreurs de ma part, corrigées
 
@@ -225,17 +249,17 @@ Aucune erreur de quota n'a été rencontrée. Les points ci-dessous sont des ris
 
 ### Tailles connues
 
-| Élément | Taille |
-|---|---|
-| Quota du dossier personnel | 100 GiB |
-| `train/geom_0.tfrecords` (100 maillages) | 13 Go |
-| `test/geom_0.tfrecords` (16 maillages) | 2,1 Go |
-| Un enregistrement de géométrie | environ 130 Mo |
-| Estimation pour 500 maillages d'entraînement | 65 à 67 Go, soit les deux tiers du quota |
-| Samples d'un run (64 PNG + 64 JPG) | 61 Mo |
-| Rendus d'un run (24 vues × 65 images) | 167 Mo |
-| Images de la base FLDM versionnées | environ 740 Ko chacune |
-| Mémoire GPU nécessaire à un pas d'entraînement | 16,6 GiB sur 24 |
+| Élément                                        | Taille                                   |
+| ---------------------------------------------- | ---------------------------------------- |
+| Quota du dossier personnel                     | 100 GiB                                  |
+| `train/geom_0.tfrecords` (100 maillages)       | 13 Go                                    |
+| `test/geom_0.tfrecords` (16 maillages)         | 2,1 Go                                   |
+| Un enregistrement de géométrie                 | environ 130 Mo                           |
+| Estimation pour 500 maillages d'entraînement   | 65 à 67 Go, soit les deux tiers du quota |
+| Samples d'un run (64 PNG + 64 JPG)             | 61 Mo                                    |
+| Rendus d'un run (24 vues × 65 images)          | 167 Mo                                   |
+| Images de la base FLDM versionnées             | environ 740 Ko chacune                   |
+| Mémoire GPU nécessaire à un pas d'entraînement | 16,6 GiB sur 24                          |
 
 - Le `ls -lh` de `train` indique un fichier de 13 Go mais « total 6,8G » en blocs, ce qui peut venir de la façon dont le système de fichiers compte l'espace. À confirmer avec `du -sh`.
 - Pour les 11 runs évalués, il faut compter environ 0,7 Go de samples et environ 1,8 Go de rendus. Les environnements `~/venvs/fldm` et surtout `~/venvs/eval` (PyTorch et ses bibliothèques CUDA) occupent chacun plusieurs Go, non mesurés.
@@ -278,9 +302,10 @@ du -sh ~/single-mesh-flow-matching/fldm/mesh_diffusion/runs/*
 
 ## 10. Ce qui reste à faire
 
-1. Évaluer les 11 runs (`eval_runs.sbatch`) et produire le tableau (`summarize.py`).
+1. Fait. Évaluation des 11 runs (`eval_runs.sbatch`) et tableau (`summarize.py`).
 2. Commiter les fichiers DDIM, rendu, métriques, résultats.
-3. Lire le tableau. Voir si `leading` à 10 pas tient face à DDPM, à quel nombre de pas `trailing` rattrape, et si les écarts dépassent le bruit entre samples.
+3. Lancer le contrôle de robustesse avec les blocs 1 et 2 d'Inception (`jobs/metrics_blocks.sbatch`), puis `summarize.py --metrics_file metrics_block<B>.json`. Vérifier que le classement des méthodes reste le même et surveiller l'instabilité numérique éventuelle du bloc 2 (`sqrtm`, composante imaginaire).
+4. Expliquer le plateau de `leading` (environ 0,79) au-dessus de celui de `trailing` (environ 0,71) à 100 et 250 pas.
 4. Écrire le flow matching (perte, échantillonneur, adaptation de l'inpainting) en réutilisant l'interface `predict_fn` de `samplers.py`.
 5. Définir un budget d'entraînement équitable, en nombre de mises à jour et non de pas, et se demander s'il faut aussi un DDPM entraîné au même budget. Démarrage à chaud ou à froid.
 6. Vérifier le comportement du planning du taux d'apprentissage avec `MultiSteps` sur un GPU (hypothèse non confirmée) et l'entraînement multi-GPU (taille de lot 16 divisée par le nombre de GPU).
@@ -290,7 +315,7 @@ du -sh ~/single-mesh-flow-matching/fldm/mesh_diffusion/runs/*
 
 ## 11. Incertitudes
 
-- La configuration exacte du SIFID du papier (couche, normalisation). On utilise 64 canaux, sans redimensionnement, d'après l'implémentation de SinGAN.
+- La configuration exacte du SIFID du papier (couche, normalisation). Le papier cite seulement le SIFID de SinGAN sans préciser le bloc d'Inception. Le bloc 0 (64 canaux, sans redimensionnement) est notre choix, d'après une implémentation du SIFID de SinGAN, sans confirmation que le papier l'utilise. Les blocs 1 et 2 sont un contrôle de robustesse propre à ce projet, à présenter comme complémentaire. Seul le code d'évaluation de Sin3DM ou les auteurs permettraient de trancher.
 - Les 24 caméras précises du papier. On a choisi 24 azimuts à 45° d'élévation.
 - Le rendu est un nuage de points colorés, sans éclairage, pas un rendu Blender.
 
@@ -314,6 +339,11 @@ sbatch --export=ALL,SPACING=leading jobs/sample_ddim.sbatch
 sbatch --export=ALL,RUNS="ref_ddpm1000 ddim_n10_eta0.0_leading ..." jobs/eval_runs.sbatch
 python mesh_diffusion/evaluation/summarize.py --runs_dir mesh_diffusion/runs --out ../results/eval_summary.csv
 
+# Contrôle de robustesse du SIFID (blocs 1 et 2 d'Inception)
+RUNS="$(ls mesh_diffusion/runs | grep -E '^(ref_ddpm1000|ddim_)' | tr '\n' ' ')"
+sbatch --export=ALL,RUNS="$RUNS",BLOCKS="1 2" jobs/metrics_blocks.sbatch
+for B in 1 2; do python mesh_diffusion/evaluation/summarize.py --runs_dir mesh_diffusion/runs --metrics_file metrics_block$B.json --out ../results/eval_summary_block$B.csv; done
+
 # Suivre ou annuler des jobs
 squeue -u $USER
 scancel --name=fldm_ddim
@@ -325,6 +355,7 @@ scancel --name=fldm_ddim
 fldm/jobs/train_bench.sbatch        fldm/jobs/sample_ref.sbatch
 fldm/jobs/sample_ddim.sbatch        fldm/jobs/render_set.sbatch
 fldm/jobs/metrics.sbatch            fldm/jobs/eval_runs.sbatch
+fldm/jobs/metrics_blocks.sbatch
 fldm/mesh_diffusion/ddim/           samplers.py, samplers_test.py, first_step_amplification.py
 fldm/mesh_diffusion/evaluation/     render_views.py, render_set.py, metrics.py, summarize.py
 results/baseline_fldm/              images et log de la base
