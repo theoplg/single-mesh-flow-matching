@@ -16,6 +16,12 @@ import optax
 from mesh_diffusion.flow_matching import flow_matching as fm
 
 SHAPE_C = (2, 50, 8)  # (batch, vertices, latent_dim), complex.
+TIME_SCALE = 1000.0
+
+
+def _flow_time(t):
+  """Inverse of `fm.network_time`: flow time tau from the network time t."""
+  return 1.0 - t / TIME_SCALE
 
 
 def _complex_normal(key, shape):
@@ -52,14 +58,15 @@ class TrainingBatchTest(absltest.TestCase):
     self.assertEqual(target.shape, z.shape)
     self.assertTrue(jnp.iscomplexobj(xt) and jnp.iscomplexobj(target))
     self.assertEqual(t.shape, (64,))
-    self.assertTrue(bool(jnp.all((t >= 0) & (t < 1000))))
+    # tau in [0, 1) gives t = 1000 * (1 - tau) in (0, 1000].
+    self.assertTrue(bool(jnp.all((t > 0) & (t <= 1000))))
     self.assertEqual(key.shape, jax.random.PRNGKey(1).shape)
 
   def test_data_is_recovered_from_xt_and_target(self):
     # x_tau + (1 - tau) * v = z1 for the straight path.
     z = _complex_normal(jax.random.PRNGKey(0), SHAPE_C)
     xt, target, t, _ = fm.make_flow_training_batch(z, jax.random.PRNGKey(1))
-    tau = (t / 1000.0)[:, None, None]
+    tau = _flow_time(t)[:, None, None]
     np.testing.assert_allclose(xt + (1.0 - tau) * target, z, atol=1e-5)
 
   def test_noise_has_scale_sigma_and_is_circular(self):
@@ -67,7 +74,7 @@ class TrainingBatchTest(absltest.TestCase):
     z = jnp.zeros((200, 100, 8), dtype=jnp.complex64)
     xt, target, t, _ = fm.make_flow_training_batch(
         z, jax.random.PRNGKey(0), sigma=sigma)
-    tau = (t / 1000.0)[:, None, None]
+    tau = _flow_time(t)[:, None, None]
     noise = xt - tau * target  # equals z0 when z = 0, up to rounding.
     np.testing.assert_allclose(jnp.std(noise.real), sigma, rtol=0.02)
     np.testing.assert_allclose(jnp.std(noise.imag), sigma, rtol=0.02)
@@ -76,8 +83,9 @@ class TrainingBatchTest(absltest.TestCase):
   def test_times_are_uniform(self):
     z = jnp.zeros((20000, 1, 1), dtype=jnp.complex64)
     _, _, t, _ = fm.make_flow_training_batch(z, jax.random.PRNGKey(0))
-    np.testing.assert_allclose(jnp.mean(t / 1000.0), 0.5, atol=0.01)
-    np.testing.assert_allclose(jnp.var(t / 1000.0), 1.0 / 12.0, atol=0.005)
+    tau = _flow_time(t)
+    np.testing.assert_allclose(jnp.mean(tau), 0.5, atol=0.01)
+    np.testing.assert_allclose(jnp.var(tau), 1.0 / 12.0, atol=0.005)
 
   def test_deterministic_given_key_and_new_key_returned(self):
     z = _complex_normal(jax.random.PRNGKey(0), SHAPE_C)
@@ -86,6 +94,15 @@ class TrainingBatchTest(absltest.TestCase):
     for x, y in zip(a, b):
       np.testing.assert_array_equal(x, y)
     self.assertFalse(np.array_equal(a[3], jax.random.PRNGKey(5)))
+
+
+class NetworkTimeTest(absltest.TestCase):
+
+  def test_flipped_time(self):
+    # Pure noise (tau = 0) gets the largest time, as in the diffusion model.
+    np.testing.assert_allclose(
+        fm.network_time(jnp.array([0.0, 0.25, 1.0])), [1000.0, 750.0, 0.0])
+    np.testing.assert_allclose(fm.network_time(0.5, time_scale=10.0), 5.0)
 
 
 class LossTest(absltest.TestCase):
@@ -132,7 +149,7 @@ class SamplerTest(absltest.TestCase):
       # Exact velocity of the straight path when the data is a single point z1:
       # v(x, tau) = (z1 - x) / (1 - tau).
       del params, geom_data
-      tau = t[:, None, None] / 1000.0
+      tau = _flow_time(t)[:, None, None]
       self.calls.append(float(t[0]))
       return (self.target - zt) / (1.0 - tau)
 
@@ -165,7 +182,8 @@ class SamplerTest(absltest.TestCase):
 
   def test_times_given_to_the_network(self):
     self._sample(4, 'euler')
-    np.testing.assert_allclose(self.calls, [0.0, 250.0, 500.0, 750.0])
+    # tau = 0, 0.25, 0.5, 0.75, flipped by `fm.network_time`.
+    np.testing.assert_allclose(self.calls, [1000.0, 750.0, 500.0, 250.0])
 
   def test_deterministic_and_key_dependent_start(self):
     # A network that does not move the state exposes the initial noise.
