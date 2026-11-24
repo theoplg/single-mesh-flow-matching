@@ -32,10 +32,16 @@ def get_config():
   config.num_samples = 64
 
   # Sampler used when `config.train` is False.
-  config.sampler = 'ddpm'  # 'ddpm' or 'ddim'
-  config.num_sampling_steps = 50  # Network evaluations, 'ddim' only.
+  config.sampler = 'ddpm'  # 'ddpm', 'ddim' or 'flow'
+  config.num_sampling_steps = 50  # Steps, 'ddim' and 'flow' only.
   config.ddim_eta = 0.0  # 0 is deterministic, 1 is as stochastic as DDPM.
   config.ddim_spacing = 'trailing'  # 'leading' or 'trailing'.
+
+  # Training objective and flow matching options.
+  config.objective = 'ddpm'  # 'ddpm' or 'flow_matching'.
+  config.fm_loss = 'l1'  # 'l1' or 'l2', flow matching only.
+  config.fm_time_scale = 1000.0  # Time given to the network is scale * tau.
+  config.fm_solver = 'euler'  # 'euler' or 'heun', sampler 'flow' only.
 
   config.num_sample_nodes = 80000
   config.num_verts = 30000  # Number of vertices in triangulation
@@ -87,6 +93,10 @@ def get_config():
   config.train = True
   config.model_checkpoint_dir = ''
 
+  # Warm start. When training, the parameters are initialized from this
+  # checkpoint directory instead of at random. Empty means from scratch.
+  config.init_checkpoint_dir = ''
+
   config.adam_args = dict(b1=0.9, b2=0.999, eps=1.0e-8, eps_root=0)
 
   # Number of training steps
@@ -104,6 +114,11 @@ def get_config():
   config.learning_rate = 5.0e-4
   config.end_learning_rate = 1.0e-5
   config.init_learning_rate = 0.00
+  # 'updates' counts num_steps and warmup_steps in optimizer updates (original
+  # behavior). 'steps' counts them in training steps, which differ from updates
+  # when gradients are accumulated over several steps (one mesh per step on a
+  # single GPU, 16 steps per update).
+  config.lr_schedule_unit = 'updates'
 
   config.use_ema = False
   config.ema_decay = 0.995

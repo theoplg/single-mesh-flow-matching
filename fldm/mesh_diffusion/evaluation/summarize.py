@@ -27,7 +27,7 @@ def parse_wall_seconds(meta_path):
 
 def parse_steps(run):
   """Guesses the number of network evaluations from the run name."""
-  match = re.search(r'ddim_n(\d+)', run) or re.search(r'ddpm(\d+)', run)
+  match = re.search(r'_n(\d+)(?:_|$)', run) or re.search(r'ddpm(\d+)', run)
   return int(match.group(1)) if match else None
 
 

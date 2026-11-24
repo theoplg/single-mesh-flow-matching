@@ -46,6 +46,7 @@ from mesh_diffusion.sin_im_ddm import diffusion as df
 from mesh_diffusion.sin_im_ddm import net
 from mesh_diffusion.sin_mesh_ddm import input_pipeline
 from mesh_diffusion.ddim import samplers
+from mesh_diffusion.flow_matching import flow_matching as fm
 
 
 @flax.struct.dataclass
@@ -130,6 +131,10 @@ def create_train_state(
 
   if config.train:
     params = variables['params']
+    if config.init_checkpoint_dir:
+      # Warm start from the parameters of an earlier run.
+      init_dict = checkpoint.load_state_dict(config.init_checkpoint_dir)
+      params = flax.core.unfreeze(init_dict['params'])
     # sigma = 0
   else:
     model_dict = checkpoint.load_state_dict(config.model_checkpoint_dir)
@@ -140,21 +145,31 @@ def create_train_state(
     # else:
     #   sigma = 0
 
+  # `optax.MultiSteps` advances the schedule once per optimizer update, that is
+  # once every `num_multi_steps` training steps. With 'steps', `num_steps` and
+  # `warmup_steps` count training steps and are converted to updates.
+  if config.lr_schedule_unit == 'steps':
+    sched_num_steps = config.num_steps // num_multi_steps
+    sched_warmup_steps = config.warmup_steps // num_multi_steps
+  else:
+    sched_num_steps = config.num_steps
+    sched_warmup_steps = config.warmup_steps
+
   if config.schedule == 'constant':
     scheduler = config.learning_rate
   elif config.schedule == 'linear':
     scheduler = optax.linear_schedule(
         init_value=config.learning_rate,
         end_value=config.end_learning_rate,
-        transition_steps=config.num_steps,
+        transition_steps=sched_num_steps,
     )
   else:
     scheduler = optax.warmup_cosine_decay_schedule(
         init_value=config.init_learning_rate,
         peak_value=config.learning_rate,
         end_value=config.end_learning_rate,
-        warmup_steps=config.warmup_steps,
-        decay_steps=config.num_steps,
+        warmup_steps=sched_warmup_steps,
+        decay_steps=sched_num_steps,
     )
 
   optimizer = optax.adam(learning_rate=scheduler, **config.adam_args)
@@ -674,6 +689,16 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str):
   key = get_rng(config.seed)
   logging.info('Using random seed %s.', key)
 
+  if config.objective not in ('ddpm', 'flow_matching'):
+    raise ValueError(f'Unknown objective {config.objective}.')
+  if config.objective == 'flow_matching':
+    if config.predict_z0:
+      raise ValueError('flow_matching is incompatible with predict_z0.')
+    if config.sample_during_training:
+      raise NotImplementedError(
+          'sample_during_training uses the diffusion sampler.'
+      )
+
   # Learning rate schedule.
   num_train_steps = config.num_steps
 
@@ -729,7 +754,18 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str):
   state = flax_utils.replicate(state)
 
   logging.info('Running pmap...')
-  if not config.predict_z0:
+  if config.objective == 'flow_matching':
+    p_train_step = jax.pmap(
+        functools.partial(
+            fm.train_step,
+            model=model,
+            optimizer=optimizer,
+            metrics_cls=Metrics,
+            loss_type=config.fm_loss,
+        ),
+        axis_name='batch',
+    )
+  elif not config.predict_z0:
     p_train_step = jax.pmap(
         functools.partial(train_step, model=model, optimizer=optimizer),
         axis_name='batch',
@@ -1030,12 +1066,21 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str):
 
           recon_data = input_pipeline.get_decoder_data(geom_batch)
           z0 = latents_batch
-          zt, epst, t, key = df.encode_batched_tangent_latent_samples(
-              z0, ab_t, key, sigma=sigma
-          )
+          if config.objective == 'flow_matching':
+            zt, target, t, key = fm.make_flow_training_batch(
+                z0, key, sigma=sigma, time_scale=config.fm_time_scale
+            )
+          else:
+            zt, epst, t, key = df.encode_batched_tangent_latent_samples(
+                z0, ab_t, key, sigma=sigma
+            )
 
           key = np.asarray(key)
-          if not config.predict_z0:
+          if config.objective == 'flow_matching':
+            state, metrics_update = p_train_step(
+                geom_data=conv_data, state=state, zt=zt, target=target, t=t
+            )
+          elif not config.predict_z0:
             state, metrics_update = p_train_step(
                 geom_data=conv_data, state=state, zt=zt, epst=epst, t=t
             )
@@ -1206,7 +1251,20 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str):
             )
 
           recon_test_data = input_pipeline.get_decoder_data(gtest_batch)
-          if config.sampler == 'ddim':
+          if config.sampler == 'flow':
+            gen_latents, key = fm.sample_latents_flow(
+                predict_fn=p_predict,
+                geom_data=geom_test_data,
+                params=state.params,
+                key=key,
+                shape=latent_shape,
+                sigma=sigma,
+                num_sampling_steps=config.num_sampling_steps,
+                solver=config.fm_solver,
+                time_scale=config.fm_time_scale,
+                inpaint_data=inpaint_data,
+            )
+          elif config.sampler == 'ddim':
             gen_latents, key = samplers.sample_latents_ddim(
                 predict_fn=p_predict,
                 geom_data=geom_test_data,
