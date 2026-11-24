@@ -12,7 +12,8 @@ Notation used throughout.
   tau: time in [0, 1]. tau = 0 is pure noise and tau = 1 is the clean latent.
   x_tau = (1 - tau) * z0 + tau * z1: point at time tau on the straight path.
   v = z1 - z0: velocity of that path. The network is trained to predict it.
-  time_scale: factor applied to tau before it is given to the network, so that
+  time_scale: factor applied to the flipped time 1 - tau before it is given to the
+    network (see `network_time`), so that
     the network receives values in [0, time_scale). The default 1000 keeps the
     range of the integer timesteps of the diffusion model (1, ..., 1000), which
     the sinusoidal time embedding of the network was designed for.
@@ -56,6 +57,25 @@ def interpolate(z0: Array, z1: Array, tau: Array) -> Array:
   return (1-tau)*z0  + tau*z1  
 
 
+def network_time(tau: Array, time_scale: float = 1000.0) -> Array:
+  """Gets the time given to the network at flow time tau.
+
+  The diffusion network was trained with large times for noisy latents (t = 1000 is
+  pure noise). The flow time runs the other way (tau = 0 is pure noise), so tau is
+  flipped. The time input then keeps the same meaning as in the diffusion model,
+  which lets a warm start reuse the pretrained time embedding. Training and
+  sampling must both use this function.
+
+  Args:
+    tau: Flow time in [0, 1], scalar or array.
+    time_scale: Value given to the network for pure noise (tau = 0).
+
+  Returns:
+    `time_scale * (1 - tau)`, which is `time_scale` for noise and 0 for data.
+  """
+  return time_scale * (1.0 - tau)
+
+
 def make_flow_training_batch(
     z: Array,
     key: Array,
@@ -81,7 +101,7 @@ def make_flow_training_batch(
       target: Velocity to be predicted by the network, complex, with the shape of
         `z`.
       t: Time given to the network, float array of shape (B,) equal to
-        `time_scale * tau`.
+        `time_scale * (1 - tau)`, see `network_time`.
       key: Updated random key.
   """
   batch_size = z.shape[0]
@@ -94,7 +114,7 @@ def make_flow_training_batch(
 
   xt = interpolate(z0, z, _expand_like(tau, z))
   target = z - z0
-  t = time_scale * tau
+  t = network_time(tau, time_scale)
 
   return xt, target, t, key
 
@@ -213,7 +233,9 @@ def sample_latents_flow(
 
   def velocity(x, tau):
     """Velocity predicted by the network at time tau, on (real, imag) pairs."""
-    time_vec = time_scale * float(tau) * jnp.ones(x.shape[0], dtype=jnp.float32)
+    time_vec = network_time(float(tau), time_scale) * jnp.ones(
+        x.shape[0], dtype=jnp.float32
+    )
     x_c = jax.lax.complex(x[..., 0], x[..., 1])
     v = predict_fn(params=params, geom_data=geom_data, zt=x_c, t=time_vec)
     return jnp.stack((jnp.real(v), jnp.imag(v)), axis=-1)
@@ -255,7 +277,7 @@ def train_step(
     state: Train state (needs `params`, `opt_state`, `step` and `replace`).
     zt: Latents at time tau, complex.
     target: Target velocity, complex.
-    t: Time given to the network (`time_scale * tau`).
+    t: Time given to the network (`time_scale * (1 - tau)`).
     metrics_cls: Metrics collection of `train.py`, which provides
       `single_from_model_output`.
     loss_type: 'l1' or 'l2'.
